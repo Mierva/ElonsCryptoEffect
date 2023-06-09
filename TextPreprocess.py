@@ -1,19 +1,18 @@
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import FunctionTransformer
-from gensim import corpora, utils, models
+from gensim import corpora, utils, models, matutils
 from sklearn.pipeline import Pipeline
+import pandas as pd
 import spacy
 
 
 class TextPreprocessor:
     """
     Preprocessor of raw texts into numerical form.
-    """
-    def __init__(self, texts: list[str]):
-        self.texts = texts
-    
-    def lemmatization(self, allowed_postags=['NOUN', 'ADJ', 'VERB', 'ADV']):    
-        if type(self.texts)!=list:
-            self.texts = [self.texts]
+    """    
+    def __lemmatization(self, texts: list[str], allowed_postags=['NOUN', 'ADJ', 'VERB', 'ADV']):    
+        if type(texts)!=list:
+            texts = [texts]
         
         nlp = spacy.load('en_core_web_sm', disable=['parser', 'ner'])
         url_pattern = [{"label": "URL",
@@ -24,7 +23,7 @@ class TextPreprocessor:
 
         
         texts_out = []
-        for text in self.texts:
+        for text in texts:
             # TODO: consider using nlp.pipe which should be faster
             doc = nlp(text)
             
@@ -38,9 +37,9 @@ class TextPreprocessor:
 
         return texts_out
 
-    def create_ngrams(self):
+    def __create_ngrams(self, texts: list[str]):
         data_words = []
-        for text in self.texts:
+        for text in texts:
             tokenized_text = utils.simple_preprocess(text)
             data_words.append(tokenized_text)
 
@@ -67,6 +66,42 @@ class TextPreprocessor:
         corpus = [id2word.doc2bow(text) for text in texts_ngrams]
         
         return id2word, corpus
+    
+    def prepare_tfidf(self, raw_texts: pd.Series, lemmatized_texts):       
+        lemmatized_texts = self.__lemmatization(raw_texts)
+        data_bigrams_trigrams = self.__create_ngrams(lemmatized_texts)
+        id2word, corpus = self.vectorize_texts(data_bigrams_trigrams)
+
+        tfidf = models.TfidfModel(corpus, id2word=id2word)
+        tfidf_vectorizer = TfidfVectorizer(max_df=0.6,
+                                           min_df=5,
+                                           ngram_range=(1,3))
+        
+        tfidf_matrix = tfidf_vectorizer.fit_transform(lemmatized_texts)
+
+        id2word = dict((v, k) for k, v in tfidf_vectorizer.vocabulary_.items())
+        corpus = matutils.Sparse2Corpus(tfidf_matrix.T)
+
+        low_value = 0.03
+        words = []
+        words_missing_in_tfidf = []
+        for i in range(0, len(corpus)):
+            bow = corpus[i]
+            low_value_words = []
+            tfidf_ids = [id for id,_ in tfidf[bow]]
+            bow_idf = [id for id,_ in bow]
+            low_value_words = [id for id, value in tfidf[bow] if value < low_value]
+            
+            drops = low_value_words + words_missing_in_tfidf
+            for item in drops:
+                words.append(id2word[item])
+            
+            # words with tfidf score of 0 will be missing
+            words_missing_in_tfidf = [id for id in bow_idf if id not in tfidf_ids]
+            new_bow = [b for b in bow if b[0] not in low_value_words and b[0] not in words_missing_in_tfidf]
+            corpus[i] = new_bow
+            
+        return id2word, corpus
 
     def make_pipeline(self, steps=None):
         """
@@ -78,8 +113,8 @@ class TextPreprocessor:
             sklearn.pipeline.Pipeline: Pipeline containing methods as transformers.
         """        
         if steps==None:
-            steps = [('lemmatization', self.lemmatization),
-                    ('trigrams', self.create_ngrams),
+            steps = [('lemmatization', self.__lemmatization),
+                    ('trigrams', self.__create_ngrams),
                     ('vectorization', self.vectorize_texts)]
 
         for i, step in enumerate(steps):
@@ -98,11 +133,12 @@ class TextPreprocessor:
         ## Returns:
             list: texts represented in numeric form.
         """        
-        steps = [('lemmatization', self.lemmatization),
-                ('trigrams', self.create_ngrams)]
+        steps = [('lemmatization', self.__lemmatization),
+                ('trigrams', self.__create_ngrams)]
 
         corpus_pipeline = self.make_pipeline(steps)
         texts_ngrams = corpus_pipeline.transform(texts)
         corpus = [id2word.doc2bow(text) for text in texts_ngrams]
     
         return corpus
+    
