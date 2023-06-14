@@ -6,7 +6,7 @@ def find_sparse_cols(df, threshold=0.5, verbose=True):
     sparse_cols = df.columns[df.notna().mean()>=threshold]
     if verbose:
         dropped_cols = df.columns[df.notna().mean() < threshold]
-        print(f'To drop:\n{df[dropped_cols].notna().mean()}')
+        print(f'\nTo drop:\n{df[dropped_cols].notna().mean()}')
     return sparse_cols
 
 def make_aggregator(df):

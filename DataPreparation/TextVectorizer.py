@@ -3,17 +3,34 @@ from sklearn.preprocessing import FunctionTransformer
 from gensim import corpora, utils, models, matutils
 from sklearn.pipeline import Pipeline
 import pandas as pd
+import logging
 import spacy
 
 
-class TextPreprocessor:
+class TextVectorizer:
     """
-    Preprocessor of raw texts into numerical form.
+    Vectorization of raw texts into numerical form.
     """    
+    def __init__(self, verbose=False) -> None:
+        self.logger = logging.getLogger("complex_method")
+
+        if self.logger.hasHandlers():
+            # Remove existing handlers to prevent accumulation
+            self.logger.handlers.clear()
+
+        if verbose: 
+            # Create a console handler for displaying log messages
+            console_handler = logging.StreamHandler()
+            formatter = logging.Formatter("%(asctime)s - %(message)s", datefmt="%H:%M:%S")
+            console_handler.setFormatter(formatter)
+            self.logger.addHandler(console_handler)
+            self.logger.setLevel(logging.INFO)  # Set the logging level to DEBUG for more detailed output
+    
     def __lemmatization(self, texts: list[str], allowed_postags=['NOUN', 'ADJ', 'VERB', 'ADV']):    
         if type(texts)!=list:
             texts = [texts]
         
+        self.logger.info("Lem1.")
         nlp = spacy.load('en_core_web_sm', disable=['parser', 'ner'])
         url_pattern = [{"label": "URL",
                         "pattern": [{"LIKE_URL": True}]}]
@@ -21,7 +38,7 @@ class TextPreprocessor:
         ruler = nlp.add_pipe('entity_ruler', before='ner')
         ruler.add_patterns(url_pattern)
 
-        
+        self.logger.info("Lem2.")
         texts_out = []
         for text in texts:
             # TODO: consider using nlp.pipe which should be faster
@@ -39,16 +56,19 @@ class TextPreprocessor:
 
     def __create_ngrams(self, texts: list[str]):
         data_words = []
+        self.logger.info("Ngram1.")
         for text in texts:
             tokenized_text = utils.simple_preprocess(text)
             data_words.append(tokenized_text)
-
+            
+        self.logger.info("Ngram2.")
         bigrams_phrases  = models.Phrases(data_words, min_count=3, threshold=50)
         trigrams_phrases = models.Phrases(bigrams_phrases[data_words], threshold=50)
 
         bigram  = models.phrases.Phraser(bigrams_phrases)
         trigram = models.phrases.Phraser(trigrams_phrases)
-
+        
+        self.logger.info("Ngram3.")
         data_bigrams = [bigram[doc] for doc in data_words]
         data_bigrams_trigrams = [trigram[bigram[doc]] for doc in data_bigrams]
         
@@ -62,6 +82,7 @@ class TextPreprocessor:
         ## Returns:
             tuple: contains id2word and corpus
         """        
+        self.logger.info("Vec1.")
         id2word = corpora.Dictionary(texts_ngrams)
         corpus = [id2word.doc2bow(text) for text in texts_ngrams]
         

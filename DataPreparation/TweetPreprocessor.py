@@ -1,17 +1,18 @@
 from sklearn.preprocessing import OrdinalEncoder, OneHotEncoder
 import pandas as pd
 import datetime
+import logging
 import json
 import re
 
-class TweetCleaner:
-    dictionary = None
-    
+
+class TweetPreprocessor:
     def __init__(self, tweets):
         if type(tweets)!=pd.DataFrame:
             self.tweets_df = pd.DataFrame(tweets)
         else:
             self.tweets_df = tweets          
+
 
     def extract_dict(self, line: str, prepare_to_df=False):
         """Extracts data from a dict represented as string and makes it a dict.
@@ -36,6 +37,7 @@ class TweetCleaner:
             
         return extracted_content
 
+
     def clean_text(self, raw_text):    
         cleaned_text = re.sub(r' \'?(displayname|renderedDescription)\'?: (.*?)(\'|None),', '', raw_text)
         cleaned_text = (cleaned_text
@@ -46,6 +48,7 @@ class TweetCleaner:
         # cleaned_text = re.sub(r'(\w+)"(\w+)', r"\1'\2", cleaned_text)
         
         return cleaned_text
+
 
     def deserialize(self, text):    
         deserialized_texts = []
@@ -66,6 +69,7 @@ class TweetCleaner:
 
         return deserialized_texts
         
+        
     def extract_quoted_tweet(self, tweet):
         if type(tweet)!=float:
             text = re.findall(r"'rawContent': '?(.*?)'?, 'renderedContent'",tweet)[0]
@@ -76,26 +80,35 @@ class TweetCleaner:
             
         return result
 
-    def create_new_features(self, mod_df):
-        encoder = OrdinalEncoder()
-        mod_df['sourceLabel_encoded'] = encoder.fit_transform(mod_df['sourceLabel'].values.reshape(-1, 1))
+
+    def create_features(self, mod_df):
+        mod_df = mod_df.copy()
         
+        # encoder = OrdinalEncoder()
+        # mod_df['sourceLabel_encoded'] = encoder.fit_transform(mod_df['sourceLabel'].values.reshape(-1, 1))
         encoder = OneHotEncoder()
-        mod_df[encoder.categories_[0]] =  encoder.fit_transform(mod_df[['sourceLabel']]).toarray()
+        mod_df[encoder.categories_[0]] = encoder.fit_transform(mod_df[['sourceLabel']]).toarray()
         
         binary_transform = (lambda column: [0 if type(tweet)==float else 1 for tweet in column])
         mod_df['isReplied']   = binary_transform(mod_df['inReplyToUser'])
         mod_df['isMentioned'] = binary_transform(mod_df['mentionedUsers'])
         
         mod_df['mentions'] = mod_df['rawContent'].apply(lambda x : re.findall(r'(@[^\s]+)', x))
-        mod_df['mentionsCount'] = mod_df['rawContent'].str.count(r'@[\w\d]+')
-
         mod_df['charCount'] = mod_df['rawContent'].apply(lambda x: len(x))
+        mod_df['mentionsCount'] = mod_df['rawContent'].str.count(r'@[\w\d]+')
         mod_df['mentionedUsers'] = mod_df['mentionedUsers'].apply(lambda x: self.deserialize(x) if type(x)==str else None)
         
         return mod_df
 
+
+
     def transform(self):
+        """Cleans tweets and makes new features.
+
+        Returns:
+            pandas.DataFrame: data containing preprocessed and cleaned raw data.
+        """        
+  
         mod_df = self.tweets_df.copy()
         mod_df = (mod_df[mod_df['lang']=='en']
                         .drop(['id','url','source','sourceUrl'], axis=1)                 
@@ -103,7 +116,6 @@ class TweetCleaner:
                         .copy())
 
         mod_df = mod_df.drop(['lang'], axis=1)
-
 
         #mod_df = mod_df.drop(['sourceLabel','inReplyToUser','mentionedUsers'], axis=1)
         extracted_df = pd.DataFrame([*mod_df['user'].apply(lambda x: self.extract_dict(x, True))])
@@ -113,14 +125,11 @@ class TweetCleaner:
                          'rawDescription','renderedDescription','favouritesCount',
                          'friendsCount','mediaCount','statusesCount','inReplyToTweetId'], axis=1))
 
-
-        # Converting columns containing numbers to int after extraction.
         for column in mod_df:
             if 'Count' in column:
                 mod_df[column] = mod_df[column].astype('Int64').copy()
-            
-            
-        mod_df = self.create_new_features(mod_df)
+        
+        mod_df = self.create_features(mod_df)
         mod_df = mod_df.drop(['links','media','link','inReplyToUser', 'descriptionLinks',
                               'renderedContent','conversationId','sourceLabel','mentions',
                               'cashtags','vibe'], axis=1)
@@ -131,7 +140,7 @@ class TweetCleaner:
         extracted_quoted_tweets = object_features['quotedTweet'].apply(lambda x: self.extract_quoted_tweet(x))
         object_features = pd.concat([object_features, extracted_quoted_tweets], axis=1)
 
-        # mergins cleaned object cols
+        # merges cleaned object cols
         mod_df[object_features.columns] = object_features.copy()
         mod_df = mod_df.drop(['mentionedUsers','label','quotedTweet'], axis=1)
         

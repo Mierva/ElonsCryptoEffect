@@ -8,7 +8,7 @@ class CryptoApi:
                        "Content-Type": 'application/json'}
 
 
-    def fetch_data(self, crypto:str, currency:str, period:str, period_count:int, allData=0):
+    def fetch_data(self, crypto:str, currency:str, period:str, period_count:int, all_data=0):
         '''Returns crypto summary for a given period in specified currency.
 
         ## Parameters:
@@ -29,6 +29,6 @@ class CryptoApi:
         '''        
 
         endpoint = f'{self.mother_endpoint}/v2/histo{period}?fsym={crypto}&tsym={currency}&limit={period_count}'
-        response = requests.get(endpoint, params={'allData':allData}, headers=self.HEADER)
+        response = requests.get(endpoint, params={'allData':all_data}, headers=self.HEADER)
         
         return response.json()
