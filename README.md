@@ -1,11 +1,11 @@
-## What is this all about:
+## What the project does
 * The primary project's idea is about testing a hypothesis whether Elon Musk's tweets **significantly** affect crypto currencies (**BTC, ETH, DOGE**) or not.
-* The secondaries are predicting crypto prices based on an input tweet. 
+* The secondaries are predicting whether a crypto will go up or down based on an input tweet and crypto data and clustering input tweets based on a date range. 
 
-## Data prepequisites:
-* I'm using all Elon Musk's tweets and only from **2010-06-0**4 to **2023-04-10** because snscrape stopped working due to some changes in Twitter policies and accessibility. May be fixed with time but for now that's it. (FIXED)
-* **Text** and **English** only (other data decisions will be mentioned inside a notebook).
+## How to use
+in windows cmd enter: python main.py year-month-day year-month-day
+first is starting date and second is ending date
+it will return list of predictions, 1 means it's predicted to go up, 0 means it's predicted to go down.
 
-## Accessibility:
-The project's findings i'll put inside main.ipynb with presentations so the main question's answer would be easy to follow.
-Prediction part will be in a web-interface as a convenient way of interacting with a model
+### Example:
+python main.py 2023-06-18 2023-06-28

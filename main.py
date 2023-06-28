@@ -10,16 +10,21 @@ from gensim.models import LdaMulticore
 from TweetScraper import TweetScraper
 from xgboost import XGBClassifier
 from CryptoApi import CryptoApi
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
+import sys
 import re
 
 
-def main():
-    # values set by a user
-    start = '2023-06-10'
-    end = '2023-06-20'
+def main(args):
+    try:
+        start = args[1] 
+        end = args[2]  
+    except:
+        start = (datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d") 
+        end = datetime.now().strftime("%Y-%m-%d")
+
     scrp = TweetScraper(start=start, end=end, max_empty_pages=1, max_workers=8)
     new_tweets = scrp.parallel_download_tweets()
 
@@ -55,6 +60,6 @@ def main():
     return predictions
     
 if __name__ == '__main__':
-    predictions = main()
+    predictions = main(sys.argv)
     print(f'preds: {predictions}')
     
