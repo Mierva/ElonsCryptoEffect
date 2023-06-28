@@ -46,7 +46,16 @@ class TopicModeling(LdaMulticore):
         optimizer.maximize(init_points=2,
                            n_iter=3)
         
+        for i, res in enumerate(optimizer.res):
+            print(f"Iteration {i}: \n\t{res}")
             
+        optimizer.set_bounds(new_bounds={"x": (-2, 3)})
+        optimizer.maximize(init_points=0,
+                           n_iter=5)
+        
+        optimizer.probe(params={"x": 0.5, "y": 0.7},
+                        lazy=True)
+                    
         return models_scores
 
     # def fit(self, params_grid, num_topics):

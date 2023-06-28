@@ -1,4 +1,8 @@
 
 
 class TimeSeriesModeling:
-    pass
+    def __init__(self) -> None:
+        pass
+    
+    def backtest():
+        pass

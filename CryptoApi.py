@@ -1,4 +1,6 @@
 import requests
+import pandas as pd
+from datetime import datetime
 
 class CryptoApi:
     def __init__(self, token):
@@ -31,4 +33,7 @@ class CryptoApi:
         endpoint = f'{self.mother_endpoint}/v2/histo{period}?fsym={crypto}&tsym={currency}&limit={period_count}'
         response = requests.get(endpoint, params={'allData':all_data}, headers=self.HEADER)
         
-        return response.json()
+        crypto_data = pd.DataFrame(response.json()['Data']['Data'])
+        crypto_data['time'] = crypto_data['time'].apply(lambda x: datetime.fromtimestamp(x))
+        
+        return crypto_data

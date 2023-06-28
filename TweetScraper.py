@@ -13,7 +13,7 @@ class TweetScraper:
 
     def sequent_download_tweets(self, query):
         tweets = []
-        for tweet in sntwitter.TwitterSearchScraper(query=query, max_empty_pages=self.max_empty_pages).get_items():
+        for tweet in sntwitter.TwitterSearchScraper(query=query, maxEmptyPages=self.maxEmptyPages).get_items():
             tweets.append(tweet)
         return tweets
 

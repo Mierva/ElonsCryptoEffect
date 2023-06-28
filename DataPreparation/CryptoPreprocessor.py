@@ -1,12 +1,12 @@
 from .TextVectorizer import TextVectorizer
+from datetime import datetime
 import pandas as pd
 from . import utils
 
 
 class CryptoPreprocessor: 
-    def __insert_topics(self, lda_model, tweets_df, topics_preffix='T_', topics_suffix=''):
-        heh = TextVectorizer()
-        preprocessing_pipeline = heh.make_pipeline()
+    def __insert_topics(self, lda_model, tweets_df, topics_preffix='T_', topics_suffix=''):        
+        preprocessing_pipeline = TextVectorizer().make_pipeline()
         tweets_df['vectorized']  = preprocessing_pipeline.transform(tweets_df['rawContent'].values.tolist())[1]
         tweets_df['TopicsProbs'] = tweets_df['vectorized'].apply(lambda x: dict(lda_model.get_document_topics(x, minimum_probability=0)))
         
@@ -22,23 +22,22 @@ class CryptoPreprocessor:
             
     def __merge_data(self, lda_model, tweets_df, raw_crypto_df):
         '''Merges tweets with discovered topics via LDA model and then with raw crypto df for further Time-series analysis.'''
-        topics_tweets_df = self.__insert_topics(lda_model, tweets_df)
+        topics_tweets_df = self.__insert_topics(lda_model, tweets_df).drop('rawContent', axis=1)
         topics_tweets_df['date'] = pd.to_datetime(topics_tweets_df['date']).dt.date
-
-        sparse_cols = utils.find_sparse_cols(topics_tweets_df)
-        topics_tweets_df = topics_tweets_df[sparse_cols]
-
+        
         aggs = utils.make_aggregator(topics_tweets_df)
         grouped_df = (topics_tweets_df
-                    .groupby('date')
-                    .agg(aggs).reset_index())
+                      .groupby('date')
+                      .agg(aggs).reset_index())
 
-        raw_crypto_df = raw_crypto_df.rename(columns={'time':'date'})
+        raw_crypto_df = raw_crypto_df.rename(columns={'time':'date'}).drop('conversionType', axis=1)
         raw_crypto_df['date'] = pd.to_datetime(raw_crypto_df['date']).dt.date
-            
-        crypto_topics = pd.merge(raw_crypto_df, grouped_df, on='date', how='inner')
-        sparse_cols   = utils.find_sparse_cols(crypto_topics)
-        crypto_topics = crypto_topics[sparse_cols].drop(['rawContent','conversionType'], axis=1) 
+        
+        # TODO: change how to left
+        crypto_topics = pd.merge(raw_crypto_df, grouped_df, on='date', how='left')
+        
+        if 'conversionSymbol' in crypto_topics.columns:
+            crypto_topics = crypto_topics.drop('conversionSymbol', axis=1)
             
         return crypto_topics
     
@@ -59,4 +58,29 @@ class CryptoPreprocessor:
         df = self.__merge_data(lda_model, tweets_df, raw_crypto_df)
         df = self.create_date_features(df)
         
+        df["tomorrow"] = df["close"].shift(-1)
+        df["target"] = (df["tomorrow"] > df["close"]).astype(int)
+        df = df.reset_index()
+        df['isPandemic'] = df['date'].apply(lambda x: 1 if (datetime(2020,1,30) <= x) & (x <= datetime(2023,5,5)) else 0)
+        df = df.set_index('date')
+        df = self.add_trend_season(df, [2,7,14,50,90])
+        
         return df
+    
+    def add_trend_season(self, data, horizons, ignore_trend=False, ignore_season=False):
+        data = data.copy()
+        predictors = []
+        for horizon in horizons:
+            rolling_average = data.rolling(horizon).mean()
+            
+            if not ignore_trend:
+                ratio_column = f'close_ratio{horizon}'
+                data[ratio_column] = data['close'] / rolling_average['close']
+                predictors += [ratio_column]
+                
+            if not ignore_season:            
+                trend_column = f'Trend_{horizon}'
+                data[trend_column] = data.shift(1).rolling(horizon).sum()['target']
+                predictors += [trend_column]        
+            
+        return data
