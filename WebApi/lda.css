@@ -1,0 +1,60 @@
+div.menu-container {
+	width: 800px;
+	margin: 45px auto 0 auto;
+}
+
+.menu-item {
+	width: 20%;
+	float: left;
+    position: relative;
+}
+
+.menu-item span {
+	text-align: center;
+	padding: 5px 0 5px 0;
+	font-size: 25px;
+	margin: 0 15px 0 15px;
+	font-weight: bold;
+	display: block;
+}
+
+.menu-item span:link, .menu-item span:visited {
+	color: black;
+	background: WhiteSmoke;
+	
+}
+
+.menu-item span:hover, .menu-item span:active {
+	color: black;
+	background: white;
+}
+
+.menu-item ul {
+	margin-top: 5px;
+	list-style-type: none;
+	height: 0px;
+	overflow: hidden;
+    position: absolute;
+    left: 0;
+    top: 100%;
+    width: 100%;
+}
+
+.menu-item:hover ul {
+	height: 115px;
+}
+
+.menu-item ul li a {
+	font-size: 20px;
+	width: 80%;
+	margin: 0 auto 0 auto;
+	margin-top: 5px;
+}
+.container {
+  display: flex;
+  flex-wrap: wrap;
+}
+.container .item {
+  flex: 1 0 33%;
+  height: 50px;
+}
