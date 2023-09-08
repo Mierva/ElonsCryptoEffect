@@ -1,0 +1,10 @@
+bayesian_optimization==1.4.3
+gensim==4.3.1
+numpy==1.24.3
+pandas==2.0.1
+pyLDAvis==3.4.1
+Requests==2.31.0
+scikit_learn==1.2.2
+snscrape==0.6.2.20230321.dev32+gb76f485
+spacy==3.5.2
+xgboost==1.7.5
