@@ -43,6 +43,7 @@ class TweetPreprocessor:
                         .replace('None','null')
                         .replace('True','true')
                         .replace('False','false'))
+        
         # cleaned_text = re.sub(r'(\w+)"(\w+)', r"\1'\2", cleaned_text)
         
         return cleaned_text
@@ -68,8 +69,8 @@ class TweetPreprocessor:
         
     def extract_quoted_tweet(self, tweet):
         if type(tweet)!=float:
-            text = re.findall(r"'rawContent': '?(.*?)'?, 'renderedContent'",tweet)[0]
-            name = re.findall(r"'user': {'username': '?(.*?)'?,",tweet)[0]
+            text = re.findall(r"'rawContent': '?(.*?)'?, 'renderedContent'", tweet)[0]
+            name = re.findall(r"'user': {'username': '?(.*?)'?,", tweet)[0]
             result = pd.Series({'quoted_text':text, 'quoted_username':name})
         else:
             result = pd.Series({'quoted_text':None, 'quoted_username':None})
@@ -105,11 +106,9 @@ class TweetPreprocessor:
         mod_df = self.tweets_df.copy()
         mod_df = mod_df.drop(utils.download_sparse_cols(), axis=1)
         mod_df = (mod_df[mod_df['lang']=='en']
-                        .drop(['id','url','source','sourceUrl'], axis=1)                 
+                        .drop(['id','url','source','sourceUrl','lang'], axis=1)                 
                         .reset_index(drop=True)
                         .copy())
-
-        mod_df = mod_df.drop(['lang'], axis=1)
 
         #mod_df = mod_df.drop(['sourceLabel','inReplyToUser','mentionedUsers'], axis=1)
         

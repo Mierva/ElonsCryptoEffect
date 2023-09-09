@@ -47,7 +47,7 @@ class TextVectorizer:
             cleaned_text = []
             for token in doc:
                 if token.ent_type_ != 'URL' and not token.is_stop and token.pos_ in allowed_postags:
-                    cleaned_text.append(token.lemma_)
+                    cleaned_text.append(token.lemma_)                    
                     
             final = ' '.join(cleaned_text)
             texts_out.append(final)

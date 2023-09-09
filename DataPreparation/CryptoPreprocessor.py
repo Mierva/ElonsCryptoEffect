@@ -52,6 +52,25 @@ class CryptoPreprocessor:
         df['day_of_week'] = df.index.dayofweek
         df['day_of_year'] = df.index.dayofyear
         
+        df['is_month_end'] = df.index.is_month_end==True
+        df['is_month_start'] = df.index.is_month_start==True
+        df['is_quarter_end'] = df.index.is_quarter_end==True
+        df['is_quarter_start'] = df.index.is_quarter_start==True
+        df['is_year_end'] = df.index.is_year_end==True
+        df['is_year_start'] = df.index.is_year_start==True
+        
+        return df
+    
+    def add_lags(self,df):
+        df = df.copy()
+        target_map = df['target'].to_dict()
+        df['lag1'] = (df.index - pd.Timedelta('1 day')).map(target_map) 
+        df['lag7'] = (df.index - pd.Timedelta('7 day')).map(target_map) 
+        df['lag14'] = (df.index - pd.Timedelta('14 day')).map(target_map) 
+        df['lag30'] = (df.index - pd.Timedelta('30 day')).map(target_map) 
+        df['lag60'] = (df.index - pd.Timedelta('60 day')).map(target_map) 
+        df['lag90'] = (df.index - pd.Timedelta('90 day')).map(target_map) 
+        df['lag365'] = (df.index - pd.Timedelta('365 day')).map(target_map) 
         return df
     
     def transform(self, lda_model, tweets_df, raw_crypto_df):
@@ -59,7 +78,8 @@ class CryptoPreprocessor:
         df = self.create_date_features(df)
         
         # df["tomorrow"] = df["close"].shift(-1)
-        df["target"] = (df["close"].shift(1) > df["close"]).astype(int)
+        df["target"] = (df["close"].shift(-1) > df["close"]).astype(int)
+        df = self.add_lags(df)
         # df = df.reset_index()
         # df['isPandemic'] = df['date'].apply(lambda x: 1 if (datetime(2020,1,30) <= x) & (x <= datetime(2023,5,5)) else 0)
         # df = df.set_index('date')
@@ -70,16 +90,17 @@ class CryptoPreprocessor:
         data = data.copy()
         predictors = []
         for horizon in horizons:
-            rolling_average = data.rolling(horizon).mean()
+            rolling_average = data['close'].rolling(horizon).mean()
             
             if not ignore_trend:
-                ratio_column = f'close_ratio{horizon}'
-                data[ratio_column] = data['close'] / rolling_average['close']
-                predictors += [ratio_column]
+                rolling = f'rolling{horizon}'
+                data[rolling] = rolling_average
+                predictors += [rolling]
                 
             if not ignore_season:            
                 trend_column = f'Trend_{horizon}'
-                data[trend_column] = data.shift(1).rolling(horizon).sum()['target']
+                # data[f'{trend_column}'] = data.shift(1).rolling(horizon).sum()['target']
+                data[f'{trend_column}'] = data.shift(1).rolling(horizon).mean()['target']
                 predictors += [trend_column]        
             
         return data, predictors
