@@ -91,12 +91,12 @@ def main(args):
     text2vec = TextVectorizer()
     preprocessing_pipeline = text2vec.make_pipeline()
     id2word, corpus = preprocessing_pipeline.transform(mod_tweets_df['rawContent'].values.tolist())
-    
-    # p = prepare(lda_model, corpus, id2word)
-    # pyLDAvis.save_html(p, 'lda.html')
 
     temp_file = datapath(r"D:\Projects\ElonMuskCrypto\Models\NLPmodels\lda")
     lda_model = LdaMulticore.load(temp_file)
+    
+    p = prepare(lda_model, corpus, id2word)
+    pyLDAvis.save_html(p, 'lda.html')
     
     crypto_prep = CryptoPreprocessor()
     new_topics_btc = crypto_prep.transform(lda_model, mod_tweets_df, btc_df)
