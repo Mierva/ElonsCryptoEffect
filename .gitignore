@@ -9,3 +9,5 @@ topics_btc.csv
 corpus.json
 CryptoAnalysis.ipynb
 Data/HourlyData/
+lda.html
+lemmatized_texts.txt
