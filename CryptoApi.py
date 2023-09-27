@@ -9,7 +9,6 @@ class CryptoApi:
         self.HEADER = {'Authorization': self.TOKEN,
                        "Content-Type": 'application/json'}
 
-
     def fetch_data(self, crypto:str, currency:str, period:str, period_count:int, all_data=0):
         '''Returns crypto summary for a given period in specified currency.
 
@@ -35,5 +34,5 @@ class CryptoApi:
         
         crypto_data = pd.DataFrame(response.json()['Data']['Data'])
         crypto_data['time'] = crypto_data['time'].apply(lambda x: datetime.fromtimestamp(x))
-        
+
         return crypto_data
