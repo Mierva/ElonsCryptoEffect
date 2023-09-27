@@ -1,19 +1,22 @@
 from DataPreparation.CryptoPreprocessor import CryptoPreprocessor
 from DataPreparation.TweetPreprocessor import TweetPreprocessor
-from DataPreparation.TextVectorizer import TextVectorizer
-from datetime import datetime, timedelta
+# from DataPreparation.TextVectorizer import TextVectorizer
+from sklearn.metrics import balanced_accuracy_score
+from datetime import datetime
 from gensim.test.utils import datapath
 from gensim.models import LdaMulticore
-from TweetScraper import TweetScraper
-from pyLDAvis.gensim import prepare 
+# from gensim.corpora import Dictionary
+# from TweetScraper import TweetScraper
+from pyLDAvis.gensim import prepare
 from xgboost import XGBClassifier
-from CryptoApi import CryptoApi
+# from CryptoApi import CryptoApi
+from textwrap import dedent
 import pandas as pd
-import numpy as np
+# import numpy as np
 import pyLDAvis
 import json
 import sys
-import re
+# import re
 
 
 def get_user_daterange(args):
@@ -43,17 +46,35 @@ def get_user_daterange(args):
     
     return user_min, user_max
 
-def main(args):
-    # try:
-    #     start = args[1] 
-    #     end = args[2]  
-    # except:
-    #     start = (datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d") 
-    #     end = datetime.now().strftime("%Y-%m-%d")
+def set_data_range(user_min, user_max, tweets, btc_df):
+    tweets = tweets.copy()
+    btc_df = btc_df.copy()
     
-    # scrp = TweetScraper(start=start, end=ewnd, max_empty_pages=1, max_workers=8)
-    # new_tweets = scrp.parallel_download_tweets()
-                    
+    MIN = tweets['date'].iloc[0]
+    MAX = tweets['date'].iloc[-1]    
+    if (user_min >= MIN) & (user_max <= MAX):
+        # start = (datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d") 
+        # end = datetime.now().strftime("%Y-%m-%d")
+        
+        # scrp = TweetScraper(start=args[1], end=args[2], max_empty_pages=1, max_workers=8)
+        # new_tweets = scrp.parallel_download_tweets()     
+        date_mask = (tweets['date'] >= user_min) & (tweets['date'] <= user_max)
+        tweets = tweets[date_mask]
+        btc_mask   = (btc_df['time'].dt.date >= user_min.date()) & (btc_df['time'].dt.date <= user_max.date())
+        btc_df = btc_df[btc_mask]
+        
+    return tweets, btc_df
+
+def load_lda_files():
+    temp_file = datapath(r"D:\Projects\ElonMuskCrypto\Models\NLPmodels\lda")    
+    lda_model = LdaMulticore.load(temp_file)
+    id2word = lda_model.id2word
+    with open('corpus.json', 'r') as r:
+        corpus = json.load(r)
+    
+    return lda_model, id2word, corpus
+
+def main(args):                    
     user_min, user_max = get_user_daterange(args)
     
     tweets = pd.read_csv(r'Data/elon_tweets.csv', index_col=0)
@@ -61,48 +82,16 @@ def main(args):
     tweets['date'] = pd.to_datetime(tweets['date'])  
     btc_df['time'] = pd.to_datetime(btc_df['time'])
     
-    MIN = tweets['date'].iloc[0]
-    MAX = tweets['date'].iloc[-1]
-    if (user_min >= MIN) & (user_max <= MAX):
-        # start = (datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d") 
-        # end = datetime.now().strftime("%Y-%m-%d")
-        
-        # scrp = TweetScraper(start=args[1], end=args[2], max_empty_pages=1, max_workers=8)
-        # new_tweets = scrp.parallel_download_tweets()     
-        tweet_mask = (tweets['date'] >= user_min) & (tweets['date'] <= user_max)
-        tweets = tweets[tweet_mask]
-        btc_mask   = (btc_df['time'].dt.date >= user_min.date()) & (btc_df['time'].dt.date <= user_max.date())
-        btc_df = btc_df[btc_mask]
-    
-    # with open('crypto_token.txt','r') as f:
-    #     token = f.readline()
-
-    # crypto = CryptoApi(token)
-    # period_count = (datetime.strptime(end,'%Y-%m-%d')-datetime.strptime(start,'%Y-%m-%d')).days    
-    # new_btc = crypto.fetch_data('btc','usd', period='day', period_count=period_count)
-
-    # new_tweets = pd.DataFrame(new_tweets)
-    tweets_df = pd.read_csv(r'Data/elon_tweets.csv', index_col=0)
-    allowed_cols = [col for col in tweets.columns if col in tweets_df.columns]
-    tweets = tweets[allowed_cols].copy()
-
-    twt_prep = TweetPreprocessor(tweets)
-    mod_tweets_df = twt_prep.transform()
-    text2vec = TextVectorizer()
-    preprocessing_pipeline = text2vec.make_pipeline()
-    id2word, corpus = preprocessing_pipeline.transform(mod_tweets_df['rawContent'].values.tolist())
-
-    temp_file = datapath(r"D:\Projects\ElonMuskCrypto\Models\NLPmodels\lda")
-    lda_model = LdaMulticore.load(temp_file)
-    
-    p = prepare(lda_model, corpus, id2word)
-    pyLDAvis.save_html(p, 'lda.html')
+    tweets, btc_df = set_data_range(user_min, user_max, tweets, btc_df)
+    mod_tweets_df = TweetPreprocessor(tweets).transform()
+ 
+    lda_model, id2word, corpus = load_lda_files()
+    pyLDAvis.save_html(prepare(lda_model, corpus, id2word), 'lda.html')
     
     crypto_prep = CryptoPreprocessor()
     new_topics_btc = crypto_prep.transform(lda_model, mod_tweets_df, btc_df)
     horizons = [2,7,21,28,60,90,180,364] 
     new_topics_btc, new_predictors = crypto_prep.add_trend_season(new_topics_btc, horizons)
-    predictors = new_topics_btc.columns[new_topics_btc.columns!='target']
     
     xgb_model = XGBClassifier()
     xgb_model.load_model('Models/CRYPTOmodels/xgbc_1694187252.json')
@@ -110,9 +99,20 @@ def main(args):
     allowed_predictors = new_topics_btc[xgb_model.feature_names_in_].copy()
     predictions = xgb_model.predict(allowed_predictors)
     
-    return predictions
+    return predictions, new_topics_btc
+    
     
 if __name__ == '__main__':
-    predictions = main(sys.argv)
-    print(f'preds: {predictions.tolist()}')
+    predictions, btc_df = main(sys.argv)
+    
+    conclusion_str = f"""\
+    Predicted:
+        up: {predictions[predictions==1].shape[0]}
+        down: {predictions[predictions==0].shape[0]}
+    Actual:
+        up: {btc_df[btc_df['target']==1].shape[0]}
+        down: {btc_df[btc_df['target']==0].shape[0]}
+    Accuracy: {balanced_accuracy_score(btc_df['target'], predictions):.3f}"""
+    
+    print(dedent(conclusion_str))
     

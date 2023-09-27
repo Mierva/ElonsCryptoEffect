@@ -63,16 +63,16 @@ class TextVectorizer:
             
         self.logger.info("Ngram2.")
         bigrams_phrases  = models.Phrases(data_words, min_count=3, threshold=50)
-        trigrams_phrases = models.Phrases(bigrams_phrases[data_words], threshold=50)
+        ngrams_phrases = models.Phrases(bigrams_phrases[data_words], threshold=50)
 
         bigram  = models.phrases.Phraser(bigrams_phrases)
-        trigram = models.phrases.Phraser(trigrams_phrases)
+        trigram = models.phrases.Phraser(ngrams_phrases)
         
         self.logger.info("Ngram3.")
         data_bigrams = [bigram[doc] for doc in data_words]
-        data_bigrams_trigrams = [trigram[bigram[doc]] for doc in data_bigrams]
+        data_bigrams_ngrams = [trigram[bigram[doc]] for doc in data_bigrams]
         
-        return data_bigrams_trigrams
+        return data_bigrams_ngrams
 
     def vectorize_texts(self, texts_ngrams:list[list[str]]):
         """
@@ -88,10 +88,10 @@ class TextVectorizer:
         
         return id2word, corpus
     
-    def prepare_tfidf(self, raw_texts: pd.Series, lemmatized_texts):       
+    def prepare_tfidf(self, raw_texts: pd.Series, lemmatized_texts: list):       
         lemmatized_texts = self.__lemmatization(raw_texts)
-        data_bigrams_trigrams = self.__create_ngrams(lemmatized_texts)
-        id2word, corpus = self.vectorize_texts(data_bigrams_trigrams)
+        data_bigrams_ngrams = self.__create_ngrams(lemmatized_texts)
+        id2word, corpus = self.vectorize_texts(data_bigrams_ngrams)
 
         tfidf = models.TfidfModel(corpus, id2word=id2word)
         tfidf_vectorizer = TfidfVectorizer(max_df=0.6,
@@ -135,7 +135,7 @@ class TextVectorizer:
         """        
         if steps==None:
             steps = [('lemmatization', self.__lemmatization),
-                    ('trigrams', self.__create_ngrams),
+                    ('ngrams', self.__create_ngrams),
                     ('vectorization', self.vectorize_texts)]
 
         for i, step in enumerate(steps):
@@ -144,6 +144,7 @@ class TextVectorizer:
 
         return Pipeline(steps)
     
+    #TODO: this is only BoW, make it tf-idf
     def prepare_new_texts(self, texts: list[str], id2word):
         """For preprocessing new text for prediction.\n
 
@@ -153,9 +154,9 @@ class TextVectorizer:
 
         ## Returns:
             list: texts represented in numeric form.
-        """        
+        """                
         steps = [('lemmatization', self.__lemmatization),
-                ('trigrams', self.__create_ngrams)]
+                 ('ngrams', self.__create_ngrams)]
 
         corpus_pipeline = self.make_pipeline(steps)
         texts_ngrams = corpus_pipeline.transform(texts)
