@@ -135,8 +135,8 @@ class TextVectorizer:
         """        
         if steps==None:
             steps = [('lemmatization', self.__lemmatization),
-                    ('ngrams', self.__create_ngrams),
-                    ('vectorization', self.vectorize_texts)]
+                     ('ngrams', self.__create_ngrams),
+                     ('vectorization', self.vectorize_texts)]
 
         for i, step in enumerate(steps):
             steps.insert(i, (step[0], FunctionTransformer(step[1])))
