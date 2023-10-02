@@ -167,7 +167,6 @@ twitter_tokens.json
 crypto_token.txt
 .vscode
 topics_btc.csv
-corpus.json
 CryptoAnalysis.ipynb
 Data/HourlyData/
 lda.html
