@@ -5,25 +5,18 @@ from . import utils
 
 
 class CryptoPreprocessor: 
-    def __insert_topics(self, lda_model, tweets_df, topics_preffix='T_', topics_suffix=''):        
-        preprocessing_pipeline = TextVectorizer().make_pipeline()
-        tweets_df['vectorized']  = preprocessing_pipeline.transform(tweets_df['rawContent'].values.tolist())[1]
-        tweets_df['TopicsProbs'] = tweets_df['vectorized'].apply(lambda x: dict(lda_model.get_document_topics(x, minimum_probability=0)))
-        
-        topics_df = pd.DataFrame(tweets_df['TopicsProbs'].tolist())
-        for col in topics_df.columns:
-            rename_pattern = f'{topics_preffix}{col}{topics_suffix}'
-            topics_df = topics_df.rename({col: rename_pattern}, axis=1)
-
-        topics_tweets_df = pd.concat([tweets_df, topics_df], axis=1).copy()
-        topics_tweets_df = topics_tweets_df.drop(['vectorized', 'TopicsProbs'], axis=1)
-            
+    def __insert_topics(self, model, tweets_df):        
+        topics, probs = model.transform(tweets_df['rawContent'])
+        topic_probs_df = pd.DataFrame({'topics':topics,
+                                       'probs':probs})
+    
+        topics_tweets_df = tweets_df.join(topic_probs_df)            
         return topics_tweets_df
             
-    def __merge_data(self, lda_model, tweets_df, raw_crypto_df):
+    def __merge_data(self, model, tweets_df, raw_crypto_df):
         '''Merges tweets with discovered topics via LDA model and then with raw crypto df.'''
         
-        topics_tweets_df = self.__insert_topics(lda_model, tweets_df).drop('rawContent', axis=1)
+        topics_tweets_df = self.__insert_topics(model, tweets_df).drop('rawContent', axis=1)
         topics_tweets_df['date'] = pd.to_datetime(topics_tweets_df['date']).dt.date
         
         aggs = utils.make_aggregator(topics_tweets_df)

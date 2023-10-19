@@ -26,49 +26,47 @@ class TextVectorizer:
             self.logger.addHandler(console_handler)
             self.logger.setLevel(logging.INFO)  # Set the logging level to DEBUG for more detailed output
     
-    def __lemmatization(self, texts: list[str], allowed_postags=['NOUN', 'ADJ', 'VERB', 'ADV']):    
-        if type(texts)!=list:
-            texts = [texts]
-        
-        self.logger.info("Lem1.")
-        nlp = spacy.load('en_core_web_sm', disable=['parser', 'ner'])
-        url_pattern = [{"label": "URL",
-                        "pattern": [{"LIKE_URL": True}]}]
-
-        ruler = nlp.add_pipe('entity_ruler', before='ner')
-        ruler.add_patterns(url_pattern)
-
-        self.logger.info("Lem2.")
-        texts_out = []
-        for text in texts:
-            # TODO: consider using nlp.pipe which should be faster
-            doc = nlp(text)
+    def __lemmatization(self, texts: list[str], 
+                      allowed_postags=['NOUN', 'ADJ', 'VERB', 'ADV'], 
+                      allowed_dep=['neg']):    
+            if type(texts)!=list:
+                texts = [texts]
             
-            cleaned_text = []
-            for token in doc:
-                if token.ent_type_ != 'URL' and not token.is_stop and token.pos_ in allowed_postags:
-                    cleaned_text.append(token.lemma_)                    
-                    
-            final = ' '.join(cleaned_text)
-            texts_out.append(final)
+            # TODO: maybe try large model
+            nlp = spacy.load('en_core_web_sm', disable=['ner'])
+            url_pattern = [{"label": "URL",
+                            "pattern": [{"LIKE_URL": True}]}]
 
-        return texts_out
+            ruler = nlp.add_pipe('entity_ruler', before='ner')
+            ruler.add_patterns(url_pattern)
+
+            texts_out = []
+            for text in nlp.pipe(texts, n_process=-1):
+                cleaned_text = []
+                for token in text:
+                    if token.ent_type_ != 'URL' and not token.is_stop and token.pos_ in allowed_postags:
+                        cleaned_text.append(token.lemma_)
+                    elif token.dep_ in allowed_dep:
+                        cleaned_text.append(token.lemma_)
+                        
+                if cleaned_text:       
+                    final = ' '.join(cleaned_text)
+                    texts_out.append(final)
+
+            return texts_out
 
     def __create_ngrams(self, texts: list[str]):
         data_words = []
-        self.logger.info("Ngram1.")
         for text in texts:
             tokenized_text = utils.simple_preprocess(text)
             data_words.append(tokenized_text)
             
-        self.logger.info("Ngram2.")
-        bigrams_phrases  = models.Phrases(data_words, min_count=3, threshold=50)
-        ngrams_phrases = models.Phrases(bigrams_phrases[data_words], threshold=50)
+        bigrams_phrases  = models.Phrases(data_words, min_count=3)
+        ngrams_phrases = models.Phrases(bigrams_phrases[data_words])
 
         bigram  = models.phrases.Phraser(bigrams_phrases)
         trigram = models.phrases.Phraser(ngrams_phrases)
         
-        self.logger.info("Ngram3.")
         data_bigrams = [bigram[doc] for doc in data_words]
         data_bigrams_ngrams = [trigram[bigram[doc]] for doc in data_bigrams]
         
@@ -86,7 +84,7 @@ class TextVectorizer:
         id2word = corpora.Dictionary(texts_ngrams)
         corpus = [id2word.doc2bow(text) for text in texts_ngrams]
         
-        return id2word, corpus
+        return id2word, corpus, texts_ngrams
     
     def prepare_tfidf(self, raw_texts: pd.Series, lemmatized_texts: list):       
         lemmatized_texts = self.__lemmatization(raw_texts)
@@ -131,7 +129,7 @@ class TextVectorizer:
             if not specified then all steps are included. 
 
         ## Returns:
-            sklearn.pipeline.Pipeline: Pipeline containing methods as transformers.
+            sklearn.pipeline.Pipeline: Pipeline containing methods as transformers that returns tuple of id2word, corpus
         """        
         if steps==None:
             steps = [('lemmatization', self.__lemmatization),
