@@ -1,48 +1,38 @@
 from DataPreparation.CryptoPreprocessor import CryptoPreprocessor
 from DataPreparation.TweetPreprocessor import TweetPreprocessor
-# from DataPreparation.TextVectorizer import TextVectorizer
 from sklearn.metrics import balanced_accuracy_score
 from datetime import datetime
 from gensim.test.utils import datapath
 from gensim.models import LdaMulticore
-# from gensim.corpora import Dictionary
-# from TweetScraper import TweetScraper
-from pyLDAvis.gensim import prepare
 from xgboost import XGBClassifier
-# from CryptoApi import CryptoApi
 from textwrap import dedent
+from bertopic import BERTopic 
 import pandas as pd
-# import numpy as np
-import pyLDAvis
 import json
 import sys
-# import re
 
 
 def get_user_daterange(args):
-    FORMAT = '%Y-%m-%d'
-    TZ = 'UTC'
-
+    format_date = lambda x: pd.Timestamp(datetime.strptime(x, '%Y-%m-%d'), tz='UTC')
     try:
-        user_min = pd.Timestamp(datetime.strptime(args[1], FORMAT), tz=TZ)
-        user_max = pd.Timestamp(datetime.strptime(args[2], FORMAT), tz=TZ)
+        user_min = format_date(args[1])
+        user_max = format_date(args[2])
     except:
         while True:
             ans = input('Do you want to specify date range? (Y/N)\n').lower()
-            
             if ans=='y':
                 print('--Type dates in yyyy-mm-dd format--')
                 start = str(input("Enter start date: "))
                 end = str(input("Enter end date: "))
-                user_min = pd.Timestamp(datetime.strptime(start, FORMAT), tz=TZ)
-                user_max = pd.Timestamp(datetime.strptime(end, FORMAT), tz=TZ)
+                user_min = format_date(start)
+                user_max = format_date(end)
                 break
             elif ans=='n':
-                user_min = pd.Timestamp(datetime.strptime(start, FORMAT), tz=TZ)
-                user_max = pd.Timestamp(datetime.strptime(end, FORMAT), tz=TZ)
+                user_min = format_date('2002-01-01')
+                user_max = format_date('3002-01-01')
                 break                
             else:
-                print("Invalid answer.")
+                print("Invalid input.")
     
     return user_min, user_max
 
@@ -52,12 +42,7 @@ def set_data_range(user_min, user_max, tweets, btc_df):
     
     MIN = tweets['date'].iloc[0]
     MAX = tweets['date'].iloc[-1]    
-    if (user_min >= MIN) & (user_max <= MAX):
-        # start = (datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d") 
-        # end = datetime.now().strftime("%Y-%m-%d")
-        
-        # scrp = TweetScraper(start=args[1], end=args[2], max_empty_pages=1, max_workers=8)
-        # new_tweets = scrp.parallel_download_tweets()     
+    if (user_min >= MIN) & (user_max <= MAX):   
         date_mask = (tweets['date'] >= user_min) & (tweets['date'] <= user_max)
         tweets = tweets[date_mask]
         btc_mask   = (btc_df['time'].dt.date >= user_min.date()) & (btc_df['time'].dt.date <= user_max.date())
@@ -74,30 +59,28 @@ def load_lda_files():
     
     return lda_model, id2word, corpus
 
-def main(args):                    
-    user_min, user_max = get_user_daterange(args)
-    
+def main(args):                       
     tweets = pd.read_csv(r'Data/elon_tweets.csv', index_col=0)
-    btc_df = pd.read_csv('Data/btc_data.csv')    
+    btc_df = pd.read_csv('Data/btc_data.csv', index_col=0)    
     tweets['date'] = pd.to_datetime(tweets['date'])  
     btc_df['time'] = pd.to_datetime(btc_df['time'])
     
+    user_min, user_max = get_user_daterange(args)
     tweets, btc_df = set_data_range(user_min, user_max, tweets, btc_df)
     mod_tweets_df = TweetPreprocessor(tweets).transform()
- 
-    lda_model, id2word, corpus = load_lda_files()
-    pyLDAvis.save_html(prepare(lda_model, corpus, id2word), 'lda.html')
+   
+    bertopic_model = BERTopic.load("Models/NLPmodels/BERTopic_v1")
+    fig = bertopic_model.visualize_hierarchy()
+    fig.write_html("hierarchical_topics_v1.html")
     
     crypto_prep = CryptoPreprocessor()
-    new_topics_btc = crypto_prep.transform(lda_model, mod_tweets_df, btc_df)
-    horizons = [2,7,21,28,60,90,180,364] 
-    new_topics_btc, new_predictors = crypto_prep.add_trend_season(new_topics_btc, horizons)
-    
+    new_topics_btc = crypto_prep.transform(bertopic_model, mod_tweets_df, btc_df)
+    new_topics_btc, new_predictors = crypto_prep.add_trend_season(data=new_topics_btc, 
+                                                                  horizons=[2,7,21,28,60,90,180,364])
     xgb_model = XGBClassifier()
-    xgb_model.load_model('Models/CRYPTOmodels/xgbc_1694187252.json')
-
-    allowed_predictors = new_topics_btc[xgb_model.feature_names_in_].copy()
-    predictions = xgb_model.predict(allowed_predictors)
+    xgb_model.load_model('Models/CRYPTOmodels/xgbc_bertopic.json')
+    filtered_data = new_topics_btc[xgb_model.feature_names_in_].copy()
+    predictions = xgb_model.predict(filtered_data)
     
     return predictions, new_topics_btc
     
@@ -107,11 +90,12 @@ if __name__ == '__main__':
     
     conclusion_str = f"""\
     Predicted:
-        up: {predictions[predictions==1].shape[0]}
+        up:   {predictions[predictions==1].shape[0]}
         down: {predictions[predictions==0].shape[0]}
     Actual:
-        up: {btc_df[btc_df['target']==1].shape[0]}
+        up:   {btc_df[btc_df['target']==1].shape[0]}
         down: {btc_df[btc_df['target']==0].shape[0]}
+        
     Accuracy: {balanced_accuracy_score(btc_df['target'], predictions):.3f}"""
     
     print(dedent(conclusion_str))
