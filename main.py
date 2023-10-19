@@ -1,12 +1,13 @@
 from DataPreparation.CryptoPreprocessor import CryptoPreprocessor
 from DataPreparation.TweetPreprocessor import TweetPreprocessor
+from HypothesisTesting import HypothesisTesting
 from sklearn.metrics import balanced_accuracy_score
-from datetime import datetime
 from gensim.test.utils import datapath
 from gensim.models import LdaMulticore
 from xgboost import XGBClassifier
-from textwrap import dedent
 from bertopic import BERTopic 
+from datetime import datetime
+from textwrap import dedent
 import pandas as pd
 import json
 import sys
@@ -87,7 +88,6 @@ def main(args):
     
 if __name__ == '__main__':
     predictions, btc_df = main(sys.argv)
-    
     conclusion_str = f"""\
     Predicted:
         up:   {predictions[predictions==1].shape[0]}
@@ -98,5 +98,11 @@ if __name__ == '__main__':
         
     Accuracy: {balanced_accuracy_score(btc_df['target'], predictions):.3f}"""
     
+    ttest_str, wicoxon_str = HypothesisTesting(alpha=0.05).get_results()
     print(dedent(conclusion_str))
+    print('------------------\n')
+    
+    print('Hypothesis testing')
+    print(dedent(ttest_str))
+    print(dedent(wicoxon_str))
     
