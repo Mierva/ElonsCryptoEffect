@@ -9,6 +9,7 @@ from bertopic import BERTopic
 from datetime import datetime
 from textwrap import dedent
 import pandas as pd
+import DashApp 
 import json
 import sys
 
@@ -86,15 +87,17 @@ def main(args):
     return predictions, new_topics_btc
     
     
-if __name__ == '__main__':
+if __name__ == '__main__': 
+    show_dash_app = True if sys.argv[-1].lower() == 'true' else False
+    
     predictions, btc_df = main(sys.argv)
     conclusion_str = f"""\
     Predicted:
-        up:   {predictions[predictions==1].shape[0]}
-        down: {predictions[predictions==0].shape[0]}
+        up:   {len(predictions[predictions==1])}
+        down: {len(predictions[predictions==0])}
     Actual:
-        up:   {btc_df[btc_df['target']==1].shape[0]}
-        down: {btc_df[btc_df['target']==0].shape[0]}
+        up:   {len(btc_df[btc_df['target']==1])}
+        down: {len(btc_df[btc_df['target']==0])}
         
     Accuracy: {balanced_accuracy_score(btc_df['target'], predictions):.3f}"""
     
@@ -106,3 +109,5 @@ if __name__ == '__main__':
     print(dedent(ttest_str))
     print(dedent(wicoxon_str))
     
+    if show_dash_app==True:
+        DashApp.run_app(debug=True)
